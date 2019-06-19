@@ -1,0 +1,91 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(rayshader)
+library(tidyr)
+source('shiny/geo_helpers.R')
+source('rayshader-gif.R')
+
+## use rasterize.df from geo_helper.R
+
+data <- get.data(resolution = 1,area.size = 2)
+localtif = data$raster
+
+#localtif <-r
+
+
+#And convert it to a matrix:
+elmat = matrix(raster::extract(localtif,raster::extent(localtif),buffer=1000),
+               nrow=ncol(localtif),ncol=nrow(localtif))
+
+
+elmat <-  apply(elmat, 2, rev)
+
+elmat <- elmat
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+```{r}
+montshadow = ray_shade(elmat,zscale=.5,lambert=FALSE)
+montamb = ambient_shade(elmat,zscale=.5)
+elmat %>% 
+    sphere_shade(zscale=.5,texture = "imhof1",sunangle = 90) %>% 
+    add_shadow(montshadow,0.5) %>%
+    add_shadow(montamb) %>%
+    plot_3d(elmat,zscale=3,fov=0,theta=-45,phi=45,windowsize=c(1000,800),zoom=0.75,
+            water=TRUE, waterdepth = 0, wateralpha = 0.5,watercolor = "cyan",
+            waterlinecolor = "white",waterlinealpha = 0.5)
+
+
+render_snapshot()
+```
+
+```{r}
+n_frames <- 180
+waterdepths <- transition_values(from = 0, to = min(elmat), steps = n_frames) 
+thetas <- transition_values(from = -45, to = -135, steps = n_frames)
+# generate gif
+zscale <- .5
+elmat %>% 
+  sphere_shade(texture = "imhof1", zscale = zscale) %>%
+  add_shadow(ambient_shade(elmat, zscale = zscale), 0.5) %>%
+  add_shadow(ray_shade(elmat, zscale = zscale, lambert = TRUE), 0.5) %>%
+  save_3d_gif(elmat, file = "montereybay.gif", duration = 6,
+              solid = TRUE, shadow = TRUE, water = TRUE, zscale = zscale,
+              watercolor = "imhof3", wateralpha = 0.8, 
+              waterlinecolor = "#ffffff", waterlinealpha = 0.5,
+              waterdepth = waterdepths/zscale, 
+              theta = thetas, phi = 45)
+```
+
+```{r}
+
+#Here, I load a map with the raster package.
+loadzip = tempfile() 
+download.file("https://tylermw.com/data/dem_01.tif.zip", loadzip)
+localtif = raster::raster(unzip(loadzip, "dem_01.tif"))
+unlink(loadzip)
+
+#And convert it to a matrix:
+elmat = matrix(raster::extract(localtif,raster::extent(localtif),buffer=1000),
+               nrow=ncol(localtif),ncol=nrow(localtif))
+
+#We use another one of rayshader's built-in textures:
+ambmat = ambient_shade(elmat)
+
+elmat %>%
+  sphere_shade(texture = "desert") %>%
+  add_water(detect_water(elmat), color="desert") %>%
+  add_shadow(ray_shade(elmat,zscale=3,maxsearch = 300),0.5) %>%
+  add_shadow(ambmat,0.5) %>%
+  plot_3d(elmat,zscale=10,fov=0,theta=135,zoom=0.75,phi=45, windowsize = c(1000,800))
+render_snapshot()
+```
+

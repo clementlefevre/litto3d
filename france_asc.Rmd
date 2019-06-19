@@ -1,0 +1,97 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(raster)
+library(tidyverse)
+library(rayshader)
+
+filename <- 'litto3d/BDALTIV2_2-0_75M_ASC_LAMB93-IGN69_FRANCE_2018-01-15/BDALTIV2/1_DONNEES_LIVRAISON_2018-01-00245/BDALTIV2_MNT_75M_ASC_LAMB93_IGN69_FRANCE/BDALTIV2_75M_FXX_0075_6900_MNT_LAMB93_IGN69.asc'
+
+filename <- 'litto3d/litto3d_data/0135_6815/LITTO3D_FRA_0136_6813_20141222_LAMB93_RGF93_IGN69/MNT1m/LITTO3D_FRA_0136_6813_MNT_20141222_LAMB93_RGF93_IGN69.asc'
+ coordinates <-
+    read.csv(filename,
+             skip = 1,
+             nrows = 2,
+             sep = "") %>% dplyr::select(2)  %>% as.data.frame(.)
+ 
+ 
+  colnames(coordinates) <- c('lower.left')
+  coordinates$upper.right <- coordinates$lower.left + 75*1000
+  
+
+df1<- read.csv(
+    filename,
+    skip = 6,
+    header = F,
+    nrows = -1,
+    sep = ""
+  )
+
+
+r.mat <- as.matrix(df1)
+r.mat[r.mat<=-100]<- -100
+
+r <- raster(r.mat)
+extent(r) <- extent(c(coordinates[[1]][1],coordinates[[2]][1],coordinates[[1]][2],coordinates[[2]][2]))
+res(r)
+#r <- aggregate(r,fact=1)
+
+plot(r)
+localtif <-r
+
+writeRaster(r, 'shiny/data/test.tif', format="GTiff",overwrite=T)
+
+localtif <- raster('shiny/data/test.tif')
+
+#And convert it to a matrix:
+elmat = matrix(raster::extract(localtif,raster::extent(localtif),buffer=1000),
+               nrow=ncol(localtif),ncol=nrow(localtif))
+
+
+
+#elmat <- r.mat
+# mirror matrix
+#elmat <-  apply(elmat, 2, rev)
+
+#elmat <- elmat*2
+```
+
+```{r}
+#And convert it to a matrix:
+elmat = matrix(raster::extract(localtif,raster::extent(localtif),buffer=1000),
+               nrow=ncol(localtif),ncol=nrow(localtif))
+
+#We use another one of rayshader's built-in textures:
+ambmat = ambient_shade(elmat)
+
+elmat %>%
+  sphere_shade(texture = "desert") %>%
+  add_water(detect_water(elmat), color="desert") %>%
+  add_shadow(ray_shade(elmat,zscale=3,maxsearch = 300),0.5) %>%
+  add_shadow(ambmat,0.5) %>%
+  plot_3d(elmat,zscale=10,fov=0,theta=135,zoom=0.75,phi=45, windowsize = c(1000,800))
+render_snapshot()
+```
+
+```{r}
+montereybay<-elmat
+montshadow = ray_shade(montereybay,zscale=50,lambert=FALSE)
+montamb = ambient_shade(montereybay,zscale=50)
+montereybay %>% 
+    sphere_shade(zscale=10,texture = "imhof1") %>% 
+    #add_shadow(montshadow,0.5) %>%
+    #add_shadow(montamb) %>%
+    plot_3d(montereybay,zscale=50,fov=0,theta=-45,phi=45,windowsize=c(1000,800),zoom=0.75,
+            water=TRUE, waterdepth = 0, wateralpha = 0.5,watercolor = "lightblue",
+            waterlinecolor = "white",waterlinealpha = 0.5)
+render_snapshot()
+```
+ 
+ 
