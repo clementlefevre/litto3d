@@ -7,44 +7,46 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
 
+
+
 ```{r}
 library(rayshader)
 library(tidyr)
 source('shiny/geo_helpers.R')
 source('rayshader-gif.R')
 
+resolution <- 5
+
 ## use rasterize.df from geo_helper.R
 
-data <- get.data(resolution = 1,area.size = 2)
-localtif = data$raster
-
-#localtif <-r
-
+data <- get.data(resolution = resolution,area.size = 5)
 
 #And convert it to a matrix:
-elmat = matrix(raster::extract(localtif,raster::extent(localtif),buffer=1000),
-               nrow=ncol(localtif),ncol=nrow(localtif))
+elmat = matrix(raster::extract(data$raster,raster::extent(data$raster),buffer=1000),
+               nrow=ncol(data$raster),ncol=nrow(data$raster))
 
 
 elmat <-  apply(elmat, 2, rev)
 
-elmat <- elmat
+#elmat <- elmat *3
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
 ```{r}
-montshadow = ray_shade(elmat,zscale=.5,lambert=FALSE)
-montamb = ambient_shade(elmat,zscale=.5)
+
+zscale <- resolution
+montshadow = ray_shade(elmat,zscale=zscale/8,lambert=TRUE)
+montamb = ambient_shade(elmat,zscale=zscale/4)
 elmat %>% 
     sphere_shade(zscale=.5,texture = "imhof1",sunangle = 90) %>% 
-    add_shadow(montshadow,0.5) %>%
+    add_shadow(montshadow,0.1) %>%
     add_shadow(montamb) %>%
-    plot_3d(elmat,zscale=3,fov=0,theta=-45,phi=45,windowsize=c(1000,800),zoom=0.75,
-            water=TRUE, waterdepth = 0, wateralpha = 0.5,watercolor = "cyan",
-            waterlinecolor = "white",waterlinealpha = 0.5)
+    plot_3d(elmat,zscale=zscale,fov=0,theta=45,phi=45,windowsize=c(2000,2000),zoom=.5,
+            water=TRUE, waterdepth = 0, wateralpha = 0.5,watercolor = "imhof4",
+            waterlinecolor = "#ffffff",waterlinealpha = 0.5)
 
-
-render_snapshot()
+#render_depth(focus=0.6,focallength = 50,filename='test_focal',clear=TRUE)
+render_snapshot(filename='test',clear=TRUE)
 ```
 
 ```{r}
@@ -65,27 +67,5 @@ elmat %>%
               theta = thetas, phi = 45)
 ```
 
-```{r}
 
-#Here, I load a map with the raster package.
-loadzip = tempfile() 
-download.file("https://tylermw.com/data/dem_01.tif.zip", loadzip)
-localtif = raster::raster(unzip(loadzip, "dem_01.tif"))
-unlink(loadzip)
-
-#And convert it to a matrix:
-elmat = matrix(raster::extract(localtif,raster::extent(localtif),buffer=1000),
-               nrow=ncol(localtif),ncol=nrow(localtif))
-
-#We use another one of rayshader's built-in textures:
-ambmat = ambient_shade(elmat)
-
-elmat %>%
-  sphere_shade(texture = "desert") %>%
-  add_water(detect_water(elmat), color="desert") %>%
-  add_shadow(ray_shade(elmat,zscale=3,maxsearch = 300),0.5) %>%
-  add_shadow(ambmat,0.5) %>%
-  plot_3d(elmat,zscale=10,fov=0,theta=135,zoom=0.75,phi=45, windowsize = c(1000,800))
-render_snapshot()
-```
 
